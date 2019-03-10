@@ -5,41 +5,36 @@ import EStyleSheet, { create } from 'react-native-extended-stylesheet';
 
 import io from 'socket.io-client';
 
-const socket = io.connect('http://10.154.144.85:6500');
+let connected = false;
+let socket = io.connect('http://10.154.144.85:6500');
 const configuration = {
     "iceServers": [
         {"url": "stun:stun.l.google.com:19302"}
     ]
 };
-let pc;
+let peerConnection;
 
 const offerOptions = {'OfferToReceiveAudio':false,'OfferToReceiveVideo':false};
 socket.on('connect', () => {
-	console.log('client connected')
-	sendMessage({
-		sender: 'mobile', 
-		type: 'connected'
+    console.log('client connected')
+    connected = true;
+	socket.emit('connected', {
+        sender: 'mobile'
     })
 });
 
-socket.on('message-for-mobile', (message)=> {
-	if (message.type === 'offer'){
-        // mobile only one to send offer
-	} else if (message.type === 'answer'){
-		pc.setRemoteDescription(message.label);
+socket.on('message', (message)=> {
+    if (message.type === 'answer'){
+		peerConnection.setRemoteDescription(message.label);
 	} else if (message.type === 'candidate'){
         if (message.candidate != null){
-            pc.addIceCandidate(message.candidate);
+            peerConnection.addIceCandidate(message.candidate);
         }
     }
 })
 
-setInterval(() => {
-	console.log(pc)
-}, 10000)
-
 function sendMessage(message){
-	socket.emit('message', message)
+	socket.emit('message', 0, message)
 }
 
 function getLocalStream(isFront, callback){
@@ -59,8 +54,8 @@ function getLocalStream(isFront, callback){
         audio: true,
         video: {
           mandatory: {
-            minWidth: 1920, // Provide your own width, height and frame rate here
-            minHeight: 1080,
+            minWidth: 1680, // Provide your own width, height and frame rate here
+            minHeight: 720,
             minFrameRate: 30
           },
           facingMode: (isFront ? "user" : "environment"),
@@ -79,97 +74,24 @@ function getLocalStream(isFront, callback){
 
 }
   
-//      createOffer = () => {
-//       pc.createOffer((desc) => {
-//         console.log('createOffer', desc);
-//         pc.setLocalDescription(desc,  () => {
-//           console.log('setLocalDescription', pc.localDescription);
-//           socket.emit('exchange', {'to': socketId, 'sdp': pc.localDescription });
-//         }, logError);
-//       }, logError);
-//     }
-  
-//     pc.onnegotiationneeded =  () => {
-//       console.log('onnegotiationneeded');
-//       if (isOffer) {
-//         createOffer();
-//       }
-//     }
-  
-//     pc.oniceconnectionstatechange = (event) => {
-//       console.log('oniceconnectionstatechange', event.target.iceConnectionState);
-//       if (event.target.iceConnectionState === 'completed') {
-//         setTimeout(() => {
-//           getStats();
-//         }, 1000);
-//       }
-//       if (event.target.iceConnectionState === 'connected') {
-//         createDataChannel();
-//       }
-//     };
-//     pc.onsignalingstatechange = (event) => {
-//       console.log('onsignalingstatechange', event.target.signalingState);
-//     };
-  
-//     pc.onaddstream =  (event) => {
-//       console.log('onaddstream', event.stream);
-//       stateContainer.setState({info: 'One peer join!'});
-  
-//       const remoteList = stateContainer.state.remoteList;
-//       remoteList[socketId] = event.stream.toURL();
-//       stateContainer.setState({ remoteList: remoteList });
-//     };
-//     pc.onremovestream =  (event) => {
-//       console.log('onremovestream', event.stream);
-//     };
-  
-//     pc.addStream(localStream);
-//     createDataChannel = () => {
-//       if (pc.textDataChannel) {
-//         return;
-//       }
-//       const dataChannel = pc.createDataChannel("text");
-  
-//       dataChannel.onerror =  (error) => {
-//         console.log("dataChannel.onerror", error);
-//       };
-  
-//       dataChannel.onmessage =  (event) => {
-//         console.log("dataChannel.onmessage:", event.data);
-//         stateContainer.receiveTextData({user: socketId, message: event.data});
-//       };
-  
-//       dataChannel.onopen =  () => {
-//         console.log('dataChannel.onopen');
-//         stateContainer.setState({textRoomConnected: true});
-//       };
-  
-//       dataChannel.onclose =  () => {
-//         console.log("dataChannel.onclose");
-//       };
-  
-//       pc.textDataChannel = dataChannel;
-//     }
-//     return pc;
-//   }
-
-
-
-
-function send(){
-    pc = new RTCPeerConnection(configuration);
-    pc.addStream(localStream)
+function sending(){
+    if(connected === false){
+        socket.connect()
+        connected = true
+    }
+    peerConnection = new RTCPeerConnection(configuration);
+    peerConnection.addStream(localStream)
 
      
     // let the "negotiationneeded" event trigger offer generation
-    pc.onnegotiationneeded = async () => {
+    peerConnection.onnegotiationneeded = async () => {
         try {
-            await pc.setLocalDescription(await pc.createOffer(offerOptions));
+            await peerConnection.setLocalDescription(await peerConnection.createOffer(offerOptions));
             // send the offer to the other peer
             sendMessage({
                 sender: 'mobile',
                 type: 'offer',
-                label: pc.localDescription
+                label: peerConnection.localDescription
             })
         } catch (err) {
             console.error(err);
@@ -177,7 +99,7 @@ function send(){
     };
 
        // send any ice candidates to the other peer
-    pc.onicecandidate = ({candidate}) => {
+    peerConnection.onicecandidate = ({candidate}) => {
         if (candidate != undefined){
             sendMessage({
             sender: 'mobile',
@@ -186,17 +108,21 @@ function send(){
        });
     }
     }
-    console.log(pc)
+    console.log(peerConnection)
 }
 
 
-function stop(){
-    pc.close();
-    console.log('Ending call');
+function stopSending(){
     sendMessage({
-            sender: 'mobile', 
-            type: 'bye',
+        sender: 'mobile', 
+        type: 'bye',
     })
+    socket.emit('disconnect');
+    socket.close()
+    connected = false;
+    peerConnection.close();
+    console.log('Ending call');
+    
 };
 
 let stateContainer
@@ -229,22 +155,23 @@ export default class Main extends React.Component {
     onPressStart(){
         const { isConnected } = this.state;
         if(!isConnected){
-            send();
+            sending();
             this.setState({
                 stopStartText: 'Stop',
                 isConnected: true
             })
             styles.startButton.backgroundColor = 'red'
         } else {
-            stop()
+            stopSending()
             this.setState({
                 stopStartText: 'Start',
                 isConnected: false
             })
-            styles.startButton.backgroundColor = 'green'
-            
+            styles.startButton.backgroundColor = 'green'            
         }
     };
+
+
 
 
     render() {
