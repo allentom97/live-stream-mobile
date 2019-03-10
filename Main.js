@@ -1,89 +1,83 @@
 import React from 'react';
 import {View, TouchableOpacity, Text, Dimensions, Platform } from 'react-native';
-import {
-    RTCPeerConnection,
-    RTCIceCandidate,
-    RTCSessionDescription,
-    RTCView,
-    MediaStream,
-    MediaStreamTrack,
-    mediaDevices
-  } from 'react-native-webrtc';
-import EStyleSheet from 'react-native-extended-stylesheet';
+import { RTCPeerConnection, RTCIceCandidate, RTCSessionDescription, RTCView,MediaStream,MediaStreamTrack, mediaDevices} from 'react-native-webrtc';
+import EStyleSheet, { create } from 'react-native-extended-stylesheet';
 
 import io from 'socket.io-client';
 
-const socket = io.connect('10.154.145.96:6500');
+const socket = io.connect('http://10.154.144.85:6500');
+const configuration = {
+    "iceServers": [
+        {"url": "stun:stun.l.google.com:19302"}
+    ]
+};
+let pc;
 
+const offerOptions = {'OfferToReceiveAudio':false,'OfferToReceiveVideo':false};
 socket.on('connect', () => {
-  console.log('client connected')
-  socket.emit('offer', 'mobile hello')
+	console.log('client connected')
+	sendMessage({
+		sender: 'mobile', 
+		type: 'connected'
+    })
 });
 
-socket.on('offer', (data) => {
-// Set remote description and send the answer
-});
-
-socket.on('answer', (data) => {
-// Set remote description
-});
-
-socket.on('candidate', (data) => {
-// Add ICE candidate to RTCPeerConnection
-});
-
-const configuration = {"iceServers": [{"url": "stun:stun.l.google.com:19302"}]};
-const pcPeers = {};
-let localStream;
-
-getLocalStream = (isFront, callback) => {
-    console.log('getLocalStream')
-
-    mediaDevices.enumerateDevices().then(sourceInfos => {
-        console.log(sourceInfos);
-        let videoSourceId;
-        for (let i = 0; i < sourceInfos.length; i++) {
-          const sourceInfo = sourceInfos[i];
-          if(sourceInfo.kind == "video" && sourceInfo.facing == (isFront ? "front" : "back")) {
-            videoSourceId = sourceInfo.id;
-          }
+socket.on('message-for-mobile', (message)=> {
+	if (message.type === 'offer'){
+        // mobile only one to send offer
+	} else if (message.type === 'answer'){
+		pc.setRemoteDescription(message.label);
+	} else if (message.type === 'candidate'){
+        if (message.candidate != null){
+            pc.addIceCandidate(message.candidate);
         }
-        mediaDevices.getUserMedia({
-          audio: true,
-          video: {
-            mandatory: {
-                minWidth: 640,
-                minHeight: 360,
-                minFrameRate: 10,
-            },
-            facingMode: (isFront ? "user" : "environment"),
-            optional: (videoSourceId ? [{sourceId: videoSourceId}] : [])
-          }
-        })
-        .then(stream => {
-            console.log('Streaming OK', stream);
-            callback(stream)
-        })
-        .catch(error => {
-            console.log('Streaming OK', stream);
-            callback(stream)
-        });
-      });
+    }
+})
+
+setInterval(() => {
+	console.log(pc)
+}, 10000)
+
+function sendMessage(message){
+	socket.emit('message', message)
 }
 
+function getLocalStream(isFront, callback){
+    console.log('getLocalStream')
 
+    
+    mediaDevices.enumerateDevices().then(sourceInfos => {
+      console.log('source infos', sourceInfos);
+      let videoSourceId;
+      for (let i = 0; i < sourceInfos.length; i++) {
+        const sourceInfo = sourceInfos[i];
+        if(sourceInfo.kind == "video" && sourceInfo.facing == (isFront ? "front" : "back")) {
+          videoSourceId = sourceInfo.id;
+        }
+      }
+      mediaDevices.getUserMedia({
+        audio: true,
+        video: {
+          mandatory: {
+            minWidth: 1920, // Provide your own width, height and frame rate here
+            minHeight: 1080,
+            minFrameRate: 30
+          },
+          facingMode: (isFront ? "user" : "environment"),
+          optional: (videoSourceId ? [{sourceId: videoSourceId}] : [])
+        }
+      })
+      .then(stream => {
+        localStream = stream
+        console.log(stream)
+        callback(stream)
+      })
+      .catch(error => {
+        console.log(error)
+      });
+    });
 
-
-// createPC = (socketId, isOffer) => {
-//     const pc = new RTCPeerConnection(configuration);
-//     pcPeers[socketId] = pc;
-  
-//     pc.onicecandidate =  (event) => {
-//       console.log('onicecandidate', event.candidate);
-//       if (event.candidate) {
-//         socket.emit('exchange', {'to': socketId, 'candidate': event.candidate });
-//       }
-//     };
+}
   
 //      createOffer = () => {
 //       pc.createOffer((desc) => {
@@ -159,54 +153,61 @@ getLocalStream = (isFront, callback) => {
 //     return pc;
 //   }
 
-// exchange = (data) => {
-//     const fromId = data.from;
-//     let pc;
-//     if (fromId in pcPeers) {
-//       pc = pcPeers[fromId];
-//     } else {
-//       pc = createPC(fromId, false);
-//     }
-  
-//     if (data.sdp) {
-//       console.log('exchange sdp', data);
-//       pc.setRemoteDescription(new RTCSessionDescription(data.sdp),  () => {
-//         if (pc.remoteDescription.type == "offer")
-//           pc.createAnswer((desc) => {
-//             console.log('createAnswer', desc);
-//             pc.setLocalDescription(desc,  () => {
-//               console.log('setLocalDescription', pc.localDescription);
-//               socket.emit('exchange', {'to': fromId, 'sdp': pc.localDescription });
-//             }, logError);
-//           }, logError);
-//       }, logError);
-//     } else {
-//       console.log('exchange candidate', data);
-//       pc.addIceCandidate(new RTCIceCandidate(data.candidate));
-//     }
-// }
 
-// socket.on('connect', (data) => {
-//   console.log('connect');
-//   getLocalStream(true, (stream) => {
-//     localStream = stream;
-//     console.log('socket connect', stream.toURL())
-//     stateContainer.setState({selfViewSrc: stream.toURL()});
-//     stateContainer.setState({status: 'ready', info: 'Please enter or create room ID'});
-//   });
-// });
+
+
+function send(){
+    pc = new RTCPeerConnection(configuration);
+    pc.addStream(localStream)
+
+     
+    // let the "negotiationneeded" event trigger offer generation
+    pc.onnegotiationneeded = async () => {
+        try {
+            await pc.setLocalDescription(await pc.createOffer(offerOptions));
+            // send the offer to the other peer
+            sendMessage({
+                sender: 'mobile',
+                type: 'offer',
+                label: pc.localDescription
+            })
+        } catch (err) {
+            console.error(err);
+        }
+    };
+
+       // send any ice candidates to the other peer
+    pc.onicecandidate = ({candidate}) => {
+        if (candidate != undefined){
+            sendMessage({
+            sender: 'mobile',
+            type: 'candidate',
+            candidate: candidate
+       });
+    }
+    }
+    console.log(pc)
+}
+
+
+function stop(){
+    pc.close();
+    console.log('Ending call');
+    sendMessage({
+            sender: 'mobile', 
+            type: 'bye',
+    })
+};
 
 let stateContainer
 
 export default class Main extends React.Component {
     // initial state
     state = {
-        info: 'Initializing',
-        status: 'init',
-        roomID: '',
-        isFront: true,
+        isConnected: false,
+        isFront: false,
         selfViewSrc: null,
-        remoteList: {},
+        remotePeer: null,
         stopStartText: 'Start',
         buttonOneDisabled: true,
         buttonTwoDisabled: true,
@@ -219,37 +220,29 @@ export default class Main extends React.Component {
         stateContainer = this;
         const { isFront } = this.state;
         getLocalStream(isFront, (stream) => {
-            if (localStream) {
-              for (const id in pcPeers) {
-                const pc = pcPeers[id];
-                pc && pc.removeStream(localStream);
-              }
-              localStream.release();
-            }
             localStream = stream;
-            container.setState({selfViewSrc: stream.toURL()});
-            console.log(this.state.selfViewSrc)
-            for (const id in pcPeers) {
-              const pc = pcPeers[id];
-              pc && pc.addStream(localStream);
-            }
-          });
+            console.log('compDidMount-stream', stream.toURL())
+            stateContainer.setState({selfViewSrc: stream.toURL()});
+        });
     }
 
     onPressStart(){
-        const { isStreaming } = this.state;
-        if(!isStreaming){
+        const { isConnected } = this.state;
+        if(!isConnected){
+            send();
             this.setState({
                 stopStartText: 'Stop',
-                isStreaming: true
+                isConnected: true
             })
             styles.startButton.backgroundColor = 'red'
         } else {
+            stop()
             this.setState({
                 stopStartText: 'Start',
-                isStreaming: false
+                isConnected: false
             })
             styles.startButton.backgroundColor = 'green'
+            
         }
     };
 
@@ -258,7 +251,7 @@ export default class Main extends React.Component {
         return (
             <View style={styles.container}>
                 <View style={styles.videoContainer}>
-                    <RTCView streamURL={this.state.selfViewSrc}style={styles.videoPlayerContainer}/>
+                    {this.state.selfViewSrc && <RTCView streamURL={this.state.selfViewSrc}style={styles.videoPlayerContainer}/>}
                 </View>
                 <View style={styles.buttonContainer}>
                     <TouchableOpacity onPress={this.onPressStart.bind(this)} style={styles.startButton}>
@@ -300,13 +293,12 @@ const styles = EStyleSheet.create({
         width: "75%",
         padding: 0,
         borderRightWidth: 2,
-        borderColor: 'black'
+        borderColor: 'black',
+        alignItems: 'center'
     },
     videoPlayerContainer: {
-        marginLeft: "2.55%",
         height: "100%",
-        aspectRatio: 5/4 ,
-        backgroundColor: 'white'
+        aspectRatio: 5/4
     },
     buttonContainer: {
         width: "25%",
