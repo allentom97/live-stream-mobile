@@ -1,12 +1,13 @@
 import React from 'react';
-import {View, TouchableOpacity, Text, Dimensions, Platform } from 'react-native';
-import { RTCPeerConnection, RTCIceCandidate, RTCSessionDescription, RTCView,MediaStream,MediaStreamTrack, mediaDevices} from 'react-native-webrtc';
-import EStyleSheet, { create } from 'react-native-extended-stylesheet';
+import {View, TouchableOpacity, Text,} from 'react-native';
+import { RTCPeerConnection, RTCView, mediaDevices} from 'react-native-webrtc';
+import EStyleSheet from 'react-native-extended-stylesheet';
 
 import io from 'socket.io-client';
 
 let connected = false;
 let socket = io.connect('http://10.154.144.85:6500');
+//let socket = io('https://ldb-broadcasting.herokuapp.com:19276')
 const configuration = {
     "iceServers": [
         {"url": "stun:stun.l.google.com:19302"}
@@ -207,7 +208,6 @@ export default class Main extends React.Component {
     }
 }
 
-const {height, width} = Dimensions.get('window');
 EStyleSheet.build({
   $rem: 18
 });
@@ -225,7 +225,7 @@ const styles = EStyleSheet.create({
     },
     videoPlayerContainer: {
         height: "100%",
-        aspectRatio: 5/4
+        width: "100%"
     },
     buttonContainer: {
         width: "25%",
