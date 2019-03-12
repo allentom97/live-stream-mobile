@@ -1,13 +1,13 @@
 import React from 'react';
-import {View, TouchableOpacity, Text,} from 'react-native';
+import {View, TouchableOpacity, Text, Modal, Dimensions} from 'react-native';
 import { RTCPeerConnection, RTCView, mediaDevices} from 'react-native-webrtc';
 import EStyleSheet from 'react-native-extended-stylesheet';
 
 import io from 'socket.io-client';
 
 let connected = false;
-let socket = io.connect('http://10.154.144.85:6500');
-//let socket = io('https://ldb-broadcasting.herokuapp.com:19276')
+//let socket = io.connect('http://10.154.144.85:6500');
+let socket = io('http://ldb-broadcasting.herokuapp.com:80')   
 const configuration = {
     "iceServers": [
         {"url": "stun:stun.l.google.com:19302"}
@@ -16,6 +16,7 @@ const configuration = {
 let peerConnection;
 
 const offerOptions = {'OfferToReceiveAudio':false,'OfferToReceiveVideo':false};
+
 socket.on('connect', () => {
     console.log('client connected')
     connected = true;
@@ -33,6 +34,47 @@ socket.on('message', (message)=> {
         }
     }
 })
+
+socket.on('text-message', (message)=>{
+    console.log('text-message', message)
+    stateContainer.setState({
+        modalText: message,
+        modalVisible: true
+    })
+})
+
+socket.on('options-message', (otherIDs, options)=> {
+    console.log('options-message', options)
+    stateContainer.setState({
+        otherIDs: otherIDs,
+        options: options,
+        buttonDisabled: false
+    })
+})
+
+socket.on('option-taken', (otherIDs, option) =>{
+    console.log('option-taken', options)
+    var newOptions = stateContainer.options
+    var spliceIndex = newOptions.indexOf(option)
+    newOptions.splice(spliceIndex, 1)
+    stateContainer.setState({
+        otherIDs: otherIDs,
+        options: newOptions,
+        buttonDisabled: false
+    })
+})
+
+function returnOption(option){
+    console.log('returning option', option)
+    socket.emit('options-response', option)
+}
+
+function takeOption(otherIDs, option){
+    console.log('taking-option')
+    for(toID in otherIDs){
+        socket.emit('option-taken', (toID, option))
+    }
+}
 
 function sendMessage(message){
 	socket.emit('message', 0, message)
@@ -74,6 +116,7 @@ function getLocalStream(isFront, callback){
     });
 
 }
+
   
 function sending(){
     if(connected === false){
@@ -129,27 +172,34 @@ function stopSending(){
 let stateContainer
 
 export default class Main extends React.Component {
+
+    constructor(props){
+        super(props)
+
+        this.onPressStart = this.onPressStart.bind(this)
+        this.closeModal = this.closeModal.bind(this)
+        this.onPressOption = this.onPressOption.bind(this)
+    }
+
     // initial state
     state = {
         isConnected: false,
-        isFront: false,
         selfViewSrc: null,
-        remotePeer: null,
         stopStartText: 'Start',
-        buttonOneDisabled: true,
-        buttonTwoDisabled: true,
-        buttonThreeDisabled: true,
+        otherIDs: [],
+        options: [],
+        buttonDisabled: true,
+        modalText: '',
+        modalVisible: false
     }
 
+  
 
     componentDidMount() {
-        console.log('componentDidmount')
         stateContainer = this;
-        const { isFront } = this.state;
-        getLocalStream(isFront, (stream) => {
+        getLocalStream(false, (stream) => {
             localStream = stream;
-            console.log('compDidMount-stream', stream.toURL())
-            stateContainer.setState({selfViewSrc: stream.toURL()});
+            this.setState({selfViewSrc: stream.toURL()});
         });
     }
 
@@ -173,41 +223,72 @@ export default class Main extends React.Component {
     };
 
 
+    onPressOption(option){
+        returnOption(option)
+        takeOption(this.state.otherIDs, option)
+        this.setState({
+            options: [option],
+            buttonDisabled: true
+        })
+    }
+
+    closeModal(){
+        this.setState({
+            modalVisible: false,
+            modalText: ''
+        })
+    }
 
 
     render() {
         return (
             <View style={styles.container}>
+                <View>
+                    <Modal
+                        animationType="slide"
+                        visible={this.state.modalVisible}
+                        transparent
+                        onRequestClose={this.closeModal}
+                    >
+                    <View>
+                        <View style={styles.modalViewStyle}>
+                            <Text style={styles.modalText}>{this.state.modalText}</Text>
+                            <TouchableOpacity 
+                                style={styles.modalButton}
+                                onPress={this.closeModal}>
+                                <Text style={styles.modalButtonText}>Okay</Text>
+                            </TouchableOpacity>
+                        </View>
+                    </View>
+                    </Modal>
+                </View>
                 <View style={styles.videoContainer}>
                     {this.state.selfViewSrc && <RTCView streamURL={this.state.selfViewSrc}style={styles.videoPlayerContainer}/>}
                 </View>
                 <View style={styles.buttonContainer}>
-                    <TouchableOpacity onPress={this.onPressStart.bind(this)} style={styles.startButton}>
+                    <TouchableOpacity onPress={this.onPressStart} style={styles.startButton}>
                         <Text style={styles.buttonText}>
                             {this.state.stopStartText}
                         </Text>
                     </TouchableOpacity>
-                    <TouchableOpacity  style={styles.responseButton} disabled={this.state.buttonOneDisabled}>
-                        <Text style={styles.responseButtonText}>
-                            lorem ipsum et delorum 
-                        </Text>
-                    </TouchableOpacity>
-                    <TouchableOpacity  style={styles.responseButton} disabled={this.state.buttonTwoDisabled}>
-                        <Text style={styles.responseButtonText}>
-                        lorem ipsum et delorum 
-                        </Text>
-                    </TouchableOpacity>
-                    <TouchableOpacity  style={styles.responseButton} disabled={this.state.buttonThreeDisabled}>
-                        <Text style={styles.responseButtonText}>
-                        lorem ipsum et delorum 
-                        </Text>
-                    </TouchableOpacity>
+                    { this.state.options &&
+                        this.state.options.map(( option, index ) => {
+                            return (
+                                <TouchableOpacity key={index}  onPress={() => this.onPressOption(option)} style={styles.responseButton} disabled={this.state.buttonDisabled}>
+                                    <Text style={styles.responseButtonText}>
+                                        {option}
+                                    </Text>
+                                </TouchableOpacity>
+                            )
+                        })
+                    }   
                 </View>
             </View>
         );
     }
 }
 
+let deviceWidth = Dimensions.get('window').width;
 EStyleSheet.build({
   $rem: 18
 });
@@ -260,5 +341,33 @@ const styles = EStyleSheet.create({
         textAlign: 'center',
         fontSize: '.55rem',
         padding: "5%"
+    },
+    modalViewStyle:{
+        borderColor: 'grey',
+        borderWidth: 1,
+        padding: '1rem',
+        alignItems: 'center',
+        justifyContent: 'center',
+        margin: '1rem',
+        minWidth: "85%",
+        backgroundColor: 'white'
+    },
+    modalButton:{
+        backgroundColor: 'white',
+        borderTopWidth: 1,
+        borderColor: 'grey',
+        width: "100%"
+    },
+    modalText:{
+        color: 'black',
+        textAlign: 'center',
+        fontSize: '1rem',
+        padding: "5%"
+    },
+    modalButtonText:{
+        color: 'blue',
+        textAlign: 'center',
+        fontSize: '.75rem',
+        paddingTop: "5%"
     }
 });
