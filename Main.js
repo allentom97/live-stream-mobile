@@ -1,28 +1,25 @@
 import React from 'react';
-import {View, TouchableOpacity, Text, Modal, Dimensions} from 'react-native';
+import {View, TouchableOpacity, Text, Modal, TextInput} from 'react-native';
 import { RTCPeerConnection, RTCView, mediaDevices} from 'react-native-webrtc';
 import EStyleSheet from 'react-native-extended-stylesheet';
 
 import io from 'socket.io-client';
 
-let connected = false;
-//let socket = io.connect('http://10.154.144.85:6500');
-let socket = io('http://ldb-broadcasting.herokuapp.com:80')   
+let socket = io.connect('http://192.168.0.19:6500');
+//let socket = io('http://ldb-broadcasting.herokuapp.com:80')   
 const configuration = {
     "iceServers": [
         {"url": "stun:stun.l.google.com:19302"}
     ]
 };
 let peerConnection;
+let stateContainer;
 
 const offerOptions = {'OfferToReceiveAudio':false,'OfferToReceiveVideo':false};
 
 socket.on('connect', () => {
     console.log('client connected')
     connected = true;
-	socket.emit('connected', {
-        sender: 'mobile'
-    })
 });
 
 socket.on('message', (message)=> {
@@ -33,59 +30,82 @@ socket.on('message', (message)=> {
             peerConnection.addIceCandidate(message.candidate);
         }
     }
-})
+});
 
 socket.on('text-message', (message)=>{
-    console.log('text-message', message)
     stateContainer.setState({
         modalText: message,
         modalVisible: true
-    })
-})
+    });
+});
 
-socket.on('options-message', (otherIDs, options)=> {
-    console.log('options-message', options)
+socket.on('options-message', (fromID, otherIDs, options)=> {
+    if(otherIDs.length !== 0){
+        var index = otherIDs.indexOf(fromID);  
+        otherIDs.splice(index, 1);
+    }
     stateContainer.setState({
         otherIDs: otherIDs,
         options: options,
         buttonDisabled: false
+    });
+});
+
+socket.on('option-taken', (fromID, otherIDs, options) =>{
+        if(otherIDs.length !== 0){
+            var index = otherIDs.indexOf(fromID);  
+            otherIDs.splice(index, 1);
+            console.log('spliced', otherIDs);
+        }
+        stateContainer.setState({
+            otherIDs: otherIDs,
+            options: options,
+            buttonDisabled: false
+        });
+});
+
+socket.on('name-taken', () =>{
+    stateContainer.setState({
+        name: '',
+        nameSet: false,
+        connected: false,
+        errorText: 'Name Taken'
     })
 })
 
-socket.on('option-taken', (otherIDs, option) =>{
-    console.log('option-taken', options)
-    var newOptions = stateContainer.options
-    var spliceIndex = newOptions.indexOf(option)
-    newOptions.splice(spliceIndex, 1)
+socket.on('mobile-connected', ()=>{
     stateContainer.setState({
-        otherIDs: otherIDs,
-        options: newOptions,
-        buttonDisabled: false
+        nameSet: true,
+        connected: true,
+        errorText: ''
     })
 })
 
 function returnOption(option){
-    console.log('returning option', option)
-    socket.emit('options-response', option)
-}
+    socket.emit('options-response', option);
+};
 
-function takeOption(otherIDs, option){
-    console.log('taking-option')
-    for(toID in otherIDs){
-        socket.emit('option-taken', (toID, option))
+function takeOption(otherIDs, options, option){
+    var opts = [];
+    for(z in options){
+        if( options[z] !== option){
+            opts.push(options[z]);
+        }
     }
-}
+    for(x in otherIDs){
+        var toID = otherIDs[x];
+        var newIDs = otherIDs;
+        newIDs.splice(x, 1);
+        socket.emit('option-taken', toID, newIDs, opts);
+    }
+};
 
 function sendMessage(message){
-	socket.emit('message', 0, message)
-}
+	socket.emit('message', 0, message);
+};
 
 function getLocalStream(isFront, callback){
-    console.log('getLocalStream')
-
-    
     mediaDevices.enumerateDevices().then(sourceInfos => {
-      console.log('source infos', sourceInfos);
       let videoSourceId;
       for (let i = 0; i < sourceInfos.length; i++) {
         const sourceInfo = sourceInfos[i];
@@ -97,7 +117,7 @@ function getLocalStream(isFront, callback){
         audio: true,
         video: {
           mandatory: {
-            minWidth: 1680, // Provide your own width, height and frame rate here
+            minWidth: 1680,
             minHeight: 720,
             minFrameRate: 30
           },
@@ -106,82 +126,77 @@ function getLocalStream(isFront, callback){
         }
       })
       .then(stream => {
-        localStream = stream
-        console.log(stream)
-        callback(stream)
+        localStream = stream;
+        callback(stream);
       })
       .catch(error => {
-        console.log(error)
       });
     });
 
 }
 
-  
 function sending(){
-    if(connected === false){
-        socket.connect()
-        connected = true
-    }
     peerConnection = new RTCPeerConnection(configuration);
-    peerConnection.addStream(localStream)
+    peerConnection.addStream(localStream);
 
-     
-    // let the "negotiationneeded" event trigger offer generation
     peerConnection.onnegotiationneeded = async () => {
         try {
             await peerConnection.setLocalDescription(await peerConnection.createOffer(offerOptions));
-            // send the offer to the other peer
             sendMessage({
                 sender: 'mobile',
                 type: 'offer',
                 label: peerConnection.localDescription
-            })
+            });
         } catch (err) {
             console.error(err);
         }
     };
 
-       // send any ice candidates to the other peer
     peerConnection.onicecandidate = ({candidate}) => {
         if (candidate != undefined){
             sendMessage({
-            sender: 'mobile',
-            type: 'candidate',
-            candidate: candidate
-       });
+                sender: 'mobile',
+                type: 'candidate',
+                candidate: candidate
+            });
+        }
     }
-    }
-    console.log(peerConnection)
 }
 
+function connectSocket(name){
+    socket.emit('mobile-connected', {
+        sender: 'mobile',
+        name: name
+    });
+}
 
 function stopSending(){
     sendMessage({
         sender: 'mobile', 
         type: 'bye',
+    });
+    stateContainer.setState({
+        name: '',
+        nameSet: false,
+        connected: false
     })
     socket.emit('disconnect');
-    socket.close()
+    socket.close();
     connected = false;
     peerConnection.close();
-    console.log('Ending call');
-    
 };
-
-let stateContainer
 
 export default class Main extends React.Component {
 
     constructor(props){
-        super(props)
+        super(props);
 
-        this.onPressStart = this.onPressStart.bind(this)
-        this.closeModal = this.closeModal.bind(this)
-        this.onPressOption = this.onPressOption.bind(this)
+        this.onPressStart = this.onPressStart.bind(this);
+        this.closeModal = this.closeModal.bind(this);
+        this.onPressOption = this.onPressOption.bind(this);
+        this.onFilledInName = this.onFilledInName.bind(this);
     }
 
-    // initial state
     state = {
         isConnected: false,
         selfViewSrc: null,
@@ -190,17 +205,17 @@ export default class Main extends React.Component {
         options: [],
         buttonDisabled: true,
         modalText: '',
-        modalVisible: false
+        modalVisible: false,
+        name: '',
+        nameSet: false,
+        connected: false,
+        errorText: ''
     }
 
   
 
     componentDidMount() {
         stateContainer = this;
-        getLocalStream(false, (stream) => {
-            localStream = stream;
-            this.setState({selfViewSrc: stream.toURL()});
-        });
     }
 
     onPressStart(){
@@ -210,39 +225,72 @@ export default class Main extends React.Component {
             this.setState({
                 stopStartText: 'Stop',
                 isConnected: true
-            })
-            styles.startButton.backgroundColor = 'red'
+            });
         } else {
             stopSending()
             this.setState({
                 stopStartText: 'Start',
                 isConnected: false
-            })
-            styles.startButton.backgroundColor = 'green'            
+            });
         }
     };
 
+    onFilledInName(){
+        if(this.state.connected !== true){
+            socket.connect();
+        }
+        connectSocket(this.state.name);
+        getLocalStream(false, (stream) => {
+            localStream = stream;
+            this.setState({selfViewSrc: stream.toURL()});
+        });
+    }
 
     onPressOption(option){
-        returnOption(option)
-        takeOption(this.state.otherIDs, option)
+        returnOption(option);
+        takeOption(this.state.otherIDs, this.state.options, option);
         this.setState({
             options: [option],
-            buttonDisabled: true
-        })
+            buttonDisabled: true,
+        });
     }
 
     closeModal(){
         this.setState({
             modalVisible: false,
             modalText: ''
-        })
+        });
     }
 
 
     render() {
         return (
             <View style={styles.container}>
+                <View>
+                    <Modal
+                        animationType="none"
+                        visible={!this.state.nameSet}
+                        onRequestClose={null}
+                    >
+                    <View>
+                        <View style={styles.nameModalStyle}>
+                            <Text style={styles.modalText}>Enter Name:</Text>
+                            <Text style={styles.errorText}>{this.state.errorText}</Text> 
+                            <TextInput
+                                maxLength={16}
+                                style={styles.TextInput}
+                                onChangeText={(name) => this.setState({name})}
+                                value={this.state.name}
+                            />
+                            <TouchableOpacity 
+                                style={styles.nameModalButton}
+                                onPress={this.state.name !== '' ? this.onFilledInName : null}>
+                                <Text style={styles.modalButtonText}>Enter</Text>
+                            </TouchableOpacity>
+                        </View>
+                    </View>
+                    </Modal>
+                </View>
                 <View>
                     <Modal
                         animationType="slide"
@@ -252,7 +300,7 @@ export default class Main extends React.Component {
                     >
                     <View>
                         <View style={styles.modalViewStyle}>
-                            <Text style={styles.modalText}>{this.state.modalText}</Text>
+                            <Text style={styles.modalText}>{this.state.modalText}</Text>            
                             <TouchableOpacity 
                                 style={styles.modalButton}
                                 onPress={this.closeModal}>
@@ -266,6 +314,7 @@ export default class Main extends React.Component {
                     {this.state.selfViewSrc && <RTCView streamURL={this.state.selfViewSrc}style={styles.videoPlayerContainer}/>}
                 </View>
                 <View style={styles.buttonContainer}>
+                    <Text>{this.state.name}</Text>
                     <TouchableOpacity onPress={this.onPressStart} style={styles.startButton}>
                         <Text style={styles.buttonText}>
                             {this.state.stopStartText}
@@ -288,11 +337,10 @@ export default class Main extends React.Component {
     }
 }
 
-let deviceWidth = Dimensions.get('window').width;
 EStyleSheet.build({
   $rem: 18
 });
-const styles = EStyleSheet.create({
+let styles = EStyleSheet.create({
     container: {
         flexDirection: 'row',
         justifyContent: 'flex-start'
@@ -369,5 +417,23 @@ const styles = EStyleSheet.create({
         textAlign: 'center',
         fontSize: '.75rem',
         paddingTop: "5%"
+    },
+    nameModalStyle:{
+        margin: '1rem',
+        backgroundColor: 'white'
+    },
+    nameModalButton:{
+        backgroundColor: 'white',
+        borderTopWidth: 1,
+        borderColor: 'grey',
+        width: "100%",
+        bottom: 0
+    },
+    TextInput: {
+        margin: '2rem',
+        borderBottomWidth: 1
+    },
+    errorText:{
+        textAlign: 'center',
     }
 });
