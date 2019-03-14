@@ -5,8 +5,9 @@ import EStyleSheet from 'react-native-extended-stylesheet';
 
 import io from 'socket.io-client';
 
-let socket = io.connect('http://192.168.0.19:6500');
-//let socket = io('http://ldb-broadcasting.herokuapp.com:80')   
+//let socket = io.connect('http://192.168.0.19:6500');
+//let socket = io.connect('http://10.154.145.245:6500');
+let socket = io('http://ldb-broadcasting.herokuapp.com:80')   
 const configuration = {
     "iceServers": [
         {"url": "stun:stun.l.google.com:19302"}
@@ -230,7 +231,9 @@ export default class Main extends React.Component {
             stopSending()
             this.setState({
                 stopStartText: 'Start',
-                isConnected: false
+                isConnected: false,
+                options: [],
+                otherIDs: []
             });
         }
     };
