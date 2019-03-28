@@ -6,8 +6,8 @@ import EStyleSheet from 'react-native-extended-stylesheet';
 import io from 'socket.io-client';
 
 //let socket = io.connect('http://192.168.0.19:6500');
-//let socket = io.connect('http://10.154.145.245:6500');
-let socket = io('http://ldb-broadcasting-server.herokuapp.com:80')   
+let socket = io.connect('http://10.154.145.164:6500');
+//let socket = io('http://ldb-broadcasting-server.herokuapp.com:80')   
 const configuration = {
     "iceServers": [
         {"url": "stun:stun.l.google.com:19302"}
@@ -30,8 +30,21 @@ socket.on('message', (message)=> {
         if (message.candidate != null){
             peerConnection.addIceCandidate(message.candidate);
         }
-    }
+    } 
 });
+
+socket.on('air', (message)=>{
+    console.log('air', message)
+    if (message.type === 'on-air'){
+        stateContainer.setState({
+            airMessage: 'Live On Air'
+        })
+    } else if (message.type === 'off-air'){
+        stateContainer.setState({
+            airMessage: 'Off Air'
+        })
+    }
+})
 
 socket.on('text-message', (message)=>{
     stateContainer.setState({
@@ -201,7 +214,7 @@ export default class Main extends React.Component {
     state = {
         isConnected: false,
         selfViewSrc: null,
-        stopStartText: 'Start',
+        stopStartText: 'Start Streaming',
         otherIDs: [],
         options: [],
         buttonDisabled: true,
@@ -210,7 +223,8 @@ export default class Main extends React.Component {
         name: '',
         nameSet: false,
         connected: false,
-        errorText: ''
+        errorText: '',
+        airMessage: 'Off Air'
     }
 
   
@@ -224,13 +238,13 @@ export default class Main extends React.Component {
         if(!isConnected){
             sending();
             this.setState({
-                stopStartText: 'Stop',
+                stopStartText: 'Stop Streaming',
                 isConnected: true
             });
         } else {
             stopSending()
             this.setState({
-                stopStartText: 'Start',
+                stopStartText: 'Start Streaming',
                 isConnected: false,
                 options: [],
                 otherIDs: []
@@ -323,6 +337,7 @@ export default class Main extends React.Component {
                             {this.state.stopStartText}
                         </Text>
                     </TouchableOpacity>
+                    <Text>{this.state.airMessage}</Text>
                     { this.state.options &&
                         this.state.options.map(( option, index ) => {
                             return (
@@ -370,6 +385,7 @@ let styles = EStyleSheet.create({
         borderColor: 'black',
         borderRadius: 5,
         marginTop: 5,
+        marginBottom: 5,
         width: "90%",
     },
     responseButton: {
@@ -385,7 +401,7 @@ let styles = EStyleSheet.create({
         color: 'white',
         textAlign: 'center',
         fontWeight: 'bold',
-        fontSize: '1rem'
+        fontSize: '0.9rem'
     },
     responseButtonText: {
         color: 'white',
