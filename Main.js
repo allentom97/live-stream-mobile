@@ -34,7 +34,6 @@ socket.on('message', (message)=> {
 });
 
 socket.on('air', (message)=>{
-    console.log('air', message)
     if (message.type === 'on-air'){
         stateContainer.setState({
             airMessage: 'Live On Air'
