@@ -10,7 +10,21 @@ import io from 'socket.io-client';
 let socket = io('http://ldb-broadcasting-server.herokuapp.com:80')   
 const configuration = {
     "iceServers": [
-        {"url": "stun:stun.l.google.com:19302"}
+        {
+            "url": "stun:stun.l.google.com:19302"
+        },
+        {
+            "url": "stun:stun1.l.google.com:19302"
+        },
+        {
+            "url": "stun:stun2.l.google.com:19302"
+        },
+        {
+            "url": "stun:stun3.l.google.com:19302"
+        },
+        {
+            "url": "stun:stun4.l.google.com:19302"
+        }
     ]
 };
 let peerConnection;
@@ -132,7 +146,7 @@ function getLocalStream(isFront, callback){
           mandatory: {
             minWidth: 1680,
             minHeight: 720,
-            minFrameRate: 30
+            minFrameRate: 10
           },
           facingMode: (isFront ? "user" : "environment"),
           optional: (videoSourceId ? [{sourceId: videoSourceId}] : [])
@@ -246,7 +260,8 @@ export default class Main extends React.Component {
                 stopStartText: 'Start Streaming',
                 isConnected: false,
                 options: [],
-                otherIDs: []
+                otherIDs: [],
+                airMessage: 'Off Air'
             });
         }
     };
