@@ -5,8 +5,7 @@ import EStyleSheet from 'react-native-extended-stylesheet';
 
 import io from 'socket.io-client';
 
-//let socket = io.connect('http://192.168.0.19:6500');
-//let socket = io.connect('http://10.154.145.164:6500');
+//let socket = io.connect('http://192.168.0.19:6500'); -> change this to local machines network address for local testing
 let socket = io('http://ldb-broadcasting-server.herokuapp.com:80')   
 const configuration = {
     "iceServers": [
@@ -33,7 +32,6 @@ let stateContainer;
 const offerOptions = {'OfferToReceiveAudio':false,'OfferToReceiveVideo':false};
 
 socket.on('connect', () => {
-    console.log('client connected')
     connected = true;
 });
 
@@ -82,7 +80,6 @@ socket.on('option-taken', (fromID, otherIDs, options) =>{
         if(otherIDs.length !== 0){
             var index = otherIDs.indexOf(fromID);  
             otherIDs.splice(index, 1);
-            console.log('spliced', otherIDs);
         }
         stateContainer.setState({
             otherIDs: otherIDs,
