@@ -28,6 +28,7 @@ const configuration = {
 };
 let peerConnection;
 let stateContainer;
+let optionSelected = false;
 
 const offerOptions = {'OfferToReceiveAudio':false,'OfferToReceiveVideo':false};
 
@@ -64,7 +65,8 @@ socket.on('text-message', (message)=>{
     });
 });
 
-socket.on('options-message', (fromID, otherIDs, options)=> {
+socket.on('options-message', (otherIDs, options)=> {
+    optionSelected = false;
     stateContainer.setState({
         otherIDs: otherIDs,
         options: options,
@@ -73,6 +75,7 @@ socket.on('options-message', (fromID, otherIDs, options)=> {
 });
 
 socket.on('option-taken', (fromID, otherIDs, options) =>{
+    if(!optionSelected){
         if(otherIDs.length !== 0){
             var index = otherIDs.indexOf(fromID);  
             otherIDs.splice(index, 1);
@@ -82,6 +85,8 @@ socket.on('option-taken', (fromID, otherIDs, options) =>{
             options: options,
             buttonDisabled: false
         });
+    }
+        
 });
 
 socket.on('name-taken', () =>{
@@ -102,6 +107,7 @@ socket.on('mobile-connected', ()=>{
 })
 
 function returnOption(option){
+    optionSelected = true;
     socket.emit('options-response', option);
 };
 
@@ -115,7 +121,6 @@ function takeOption(otherIDs, options, option){
     for(x in otherIDs){
         var toID = otherIDs[x];
         var newIDs = otherIDs;
-        newIDs.splice(x, 1);
         socket.emit('option-taken', toID, newIDs, opts);
     }
 };
