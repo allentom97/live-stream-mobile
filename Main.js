@@ -65,10 +65,6 @@ socket.on('text-message', (message)=>{
 });
 
 socket.on('options-message', (fromID, otherIDs, options)=> {
-    if(otherIDs.length !== 0){
-        var index = otherIDs.indexOf(fromID);  
-        otherIDs.splice(index, 1);
-    }
     stateContainer.setState({
         otherIDs: otherIDs,
         options: options,
