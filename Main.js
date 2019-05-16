@@ -5,7 +5,7 @@ import EStyleSheet from 'react-native-extended-stylesheet';
 
 import io from 'socket.io-client';
 
-//let socket = io.connect('http://192.168.0.19:6500'); -> change this to local machines network address for local testing
+//let socket = io.connect('http://10.154.145.134:6500');
 let socket = io('http://ldb-broadcasting-server.herokuapp.com:80')   
 const configuration = {
     "iceServers": [
@@ -58,10 +58,24 @@ socket.on('air', (message)=>{
     }
 })
 
-socket.on('text-message', (message)=>{
+socket.on('text-message', (otherStreamers, message)=>{
+    var recipientsMessage = 'Sent to You:'
+    if(otherStreamers.length > 0){
+        recipientsMessage = 'Sent to You'
+        for(var x in otherStreamers){
+            if(x == otherStreamers.length-1){
+                recipientsMessage+= ', and '
+            }else{
+                recipientsMessage+= ', '
+            }
+            recipientsMessage+= String(otherStreamers[x])
+        }
+        recipientsMessage+= ':'
+    }
     stateContainer.setState({
         modalText: message,
-        modalVisible: true
+        modalVisible: true,
+        modalRecipients: recipientsMessage
     });
 });
 
@@ -70,7 +84,9 @@ socket.on('options-message', (otherIDs, options)=> {
     stateContainer.setState({
         otherIDs: otherIDs,
         options: options,
-        buttonDisabled: false
+        buttonDisabled: false,
+        optionSelected: false,
+        optionSelectedDisplay: ''
     });
 });
 
@@ -203,7 +219,9 @@ function stopSending(){
     stateContainer.setState({
         name: '',
         nameSet: false,
-        connected: false
+        connected: false, 
+        optionSelected: false,
+        optionSelectedDisplay: '',
     })
     socket.emit('disconnect');
     socket.close();
@@ -231,11 +249,15 @@ export default class Main extends React.Component {
         buttonDisabled: true,
         modalText: '',
         modalVisible: false,
+        modalRecipients: 'Sent to You:',
         name: '',
         nameSet: false,
         connected: false,
         errorText: '',
-        airMessage: 'Off Air'
+        airMessage: 'Off Air',
+        optionSelected: false,
+        optionSelectedDisplay: ''
+        
     }
 
   
@@ -279,7 +301,9 @@ export default class Main extends React.Component {
         returnOption(option);
         takeOption(this.state.otherIDs, this.state.options, option);
         this.setState({
-            options: [option],
+            options: [],
+            optionSelected: true,
+            optionSelectedDisplay: option,
             buttonDisabled: true,
         });
     }
@@ -329,6 +353,7 @@ export default class Main extends React.Component {
                     >
                     <View>
                         <View style={styles.modalViewStyle}>
+                            <Text style={styles.modalRecipientText}>{this.state.modalRecipients}</Text>
                             <Text style={styles.modalText}>{this.state.modalText}</Text>            
                             <TouchableOpacity 
                                 style={styles.modalButton}
@@ -361,6 +386,12 @@ export default class Main extends React.Component {
                             )
                         })
                     }   
+                    { this.state.optionSelected &&
+                        <View style={styles.optionSelectedContainer}>
+                            <Text style={styles.selectedTitleText}>Selected Option:</Text>
+                            <Text>{this.state.optionSelectedDisplay}</Text>
+                        </View>
+                    } 
                 </View>
             </View>
         );
@@ -390,6 +421,17 @@ let styles = EStyleSheet.create({
         width: "25%",
         flexDirection: 'column',
         alignItems: 'center'
+    },
+    optionSelectedContainer:{
+        borderColor: 'black',
+        borderTopWidth: 1,
+        alignItems: 'center',
+        justifyContent: 'center',
+        margin: '.5rem',
+        minWidth: "85%",
+    },
+    selectedTitleText:{
+        margin:'0.255rem'
     },
     startButton: {
         backgroundColor: 'green',
@@ -424,11 +466,12 @@ let styles = EStyleSheet.create({
     modalViewStyle:{
         borderColor: 'grey',
         borderWidth: 1,
-        padding: '1rem',
+        padding: '0.25rem',
         alignItems: 'center',
         justifyContent: 'center',
-        margin: '1rem',
-        minWidth: "85%",
+        marginLeft: '1rem',
+        marginRight: '1rem',
+        minWidth: "75%",
         backgroundColor: 'white'
     },
     modalButton:{
@@ -440,14 +483,24 @@ let styles = EStyleSheet.create({
     modalText:{
         color: 'black',
         textAlign: 'center',
-        fontSize: '1rem',
-        padding: "5%"
+        fontSize: '0.8rem',
+        paddingBottom: '2.5%',
+        paddingTop: '2.5%'
+    },
+    modalRecipientText:{
+        color: 'black',
+        textAlign: 'center',
+        fontSize: '0.8rem',
+        borderBottomWidth: 1,
+        borderColor: 'grey',
+
     },
     modalButtonText:{
         color: 'blue',
         textAlign: 'center',
-        fontSize: '.75rem',
-        paddingTop: "5%"
+        fontSize: '0.8rem',
+        paddingTop: '0.5rem',
+        paddingBottom: '0.25rem'
     },
     nameModalStyle:{
         margin: '1rem',
