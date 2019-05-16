@@ -5,8 +5,8 @@ import EStyleSheet from 'react-native-extended-stylesheet';
 
 import io from 'socket.io-client';
 
-//let socket = io.connect('http://10.154.145.134:6500');
-let socket = io('http://ldb-broadcasting-server.herokuapp.com:80')   
+let socket = io.connect('http://10.154.145.134:6500');
+//let socket = io('http://ldb-broadcasting-server.herokuapp.com:80')   
 const configuration = {
     "iceServers": [
         {
