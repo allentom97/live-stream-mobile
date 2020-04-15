@@ -1,5 +1,5 @@
 import React from 'react';
-import {View, TouchableOpacity, Text, Modal, TextInput} from 'react-native';
+import {View, TouchableOpacity, Text, Modal, TextInput, Vibration} from 'react-native';
 import { RTCPeerConnection, RTCView, mediaDevices} from 'react-native-webrtc';
 import EStyleSheet from 'react-native-extended-stylesheet';
 import io from 'socket.io-client';
@@ -10,7 +10,7 @@ YellowBox.ignoreWarnings([
     'Unrecognized WebSocket connection option(s) `agent`, `perMessageDeflate`, `pfx`, `key`, `passphrase`, `cert`, `ca`, `ciphers`, `rejectUnauthorized`. Did you mean to put these under `headers`?'
 ]);
 
-let socket = io.connect('http://192.168.0.15:6500');
+let socket = io.connect('http://192.168.1.118:6500');
 // if on eduroam
 // let socket = io.connect('http://10.154.100.225:6500');
 //let socket = io('http://ldb-broadcasting-server.herokuapp.com:80')   
@@ -40,6 +40,8 @@ var questionText;
 
 const offerOptions = {'OfferToReceiveAudio':false,'OfferToReceiveVideo':false};
 
+const PATTERN = [0,200,200,200];
+
 socket.on('connect', () => {
     connected = true;
 });
@@ -56,6 +58,7 @@ socket.on('message', (message)=> {
 
 socket.on('air', (message)=>{
     if (message.type === 'on-air'){
+        Vibration.vibrate(750);
         stateContainer.setState({
             airMessage: 'Live On Air'
         })
@@ -67,6 +70,8 @@ socket.on('air', (message)=>{
 })
 
 socket.on('text-message', (otherStreamers, message)=>{
+    Vibration.vibrate(PATTERN);
+
     var recipientsMessage = 'Sent to You:'
     questionText = message;
     if(otherStreamers.length > 0){
@@ -86,7 +91,6 @@ socket.on('text-message', (otherStreamers, message)=>{
         modalVisible: true,
         modalRecipients: recipientsMessage
     });
-    
 });
 
 socket.on('options-message', (otherIDs, options)=> {
@@ -259,7 +263,7 @@ export default class Main extends React.Component {
     state = {
         isConnected: false,
         selfViewSrc: null,
-        stopStartText: 'Start Streaming',
+        stopStartText: 'Start',
         otherIDs: [],
         options: [],
         buttonDisabled: true,
@@ -287,13 +291,13 @@ export default class Main extends React.Component {
         if(!isConnected){
             sending();
             this.setState({
-                stopStartText: 'Stop Streaming',
+                stopStartText: 'Stop',
                 isConnected: true
             });
         } else {
             stopSending()
             this.setState({
-                stopStartText: 'Start Streaming',
+                stopStartText: 'Start',
                 isConnected: false,
                 options: [],
                 otherIDs: [],
@@ -345,7 +349,7 @@ export default class Main extends React.Component {
                     >
                     <View>
                         <View style={styles.nameModalStyle}>
-                            <Text style={styles.modalText}>Enter Name:</Text>
+                            <Text style={styles.nameText}>Enter Name:</Text>
                             <Text style={styles.errorText}>{this.state.errorText}</Text> 
                             <TextInput
                                 maxLength={16}
@@ -392,7 +396,13 @@ export default class Main extends React.Component {
                             {this.state.stopStartText}
                         </Text>
                     </TouchableOpacity>
-                    <Text>{this.state.airMessage}</Text>
+                    { this.state.airMessage === 'Live On Air' &&
+                        <TouchableOpacity style={styles.onAirButton}>
+                            <Text style={styles.buttonText}>
+                                Live
+                            </Text>
+                        </TouchableOpacity>
+                    }
                     { this.state.options &&
                         this.state.options.map(( option, index ) => {
                             return (
@@ -417,7 +427,8 @@ export default class Main extends React.Component {
 }
 
 EStyleSheet.build({
-  $rem: 18
+  $rem: 18,
+  $notificationGrey: 'rgba(58,58,58,0.9)'
 });
 let styles = EStyleSheet.create({
     container: {
@@ -429,7 +440,8 @@ let styles = EStyleSheet.create({
         padding: 0,
         borderRightWidth: 2,
         borderColor: 'black',
-        alignItems: 'center'
+        alignItems: 'center',
+        backgroundColor: 'rgba(58,58,58,1)'
     },
     videoPlayerContainer: {
         height: "100%",
@@ -452,7 +464,16 @@ let styles = EStyleSheet.create({
         margin:'0.255rem'
     },
     startButton: {
-        backgroundColor: 'green',
+        backgroundColor: 'grey',
+        borderWidth: 2,
+        borderColor: 'black',
+        borderRadius: 5,
+        marginTop: 5,
+        marginBottom: 5,
+        width: "90%",
+    },
+    onAirButton: {
+        backgroundColor: 'red',
         borderWidth: 2,
         borderColor: 'black',
         borderRadius: 5,
@@ -461,7 +482,7 @@ let styles = EStyleSheet.create({
         width: "90%",
     },
     responseButton: {
-        backgroundColor: 'grey',
+        backgroundColor: '#00838f',
         borderWidth: 2,
         borderColor: 'black',
         borderRadius: 5,
@@ -473,48 +494,53 @@ let styles = EStyleSheet.create({
         color: 'white',
         textAlign: 'center',
         fontWeight: 'bold',
-        fontSize: '0.9rem'
+        fontSize: '1rem'
     },
     responseButtonText: {
         color: 'white',
         textAlign: 'center',
         fontSize: '.55rem',
-        padding: "5%"
+        padding: "5%",
+        fontSize: '0.8rem'
     },
-    modalViewStyle:{
-        borderColor: 'grey',
-        borderWidth: 1,
-        padding: '0.25rem',
-        alignItems: 'center',
-        justifyContent: 'center',
-        marginLeft: '1rem',
-        marginRight: '1rem',
-        minWidth: "75%",
-        backgroundColor: 'white'
-    },
-    modalButton:{
-        backgroundColor: 'white',
-        borderTopWidth: 1,
-        borderColor: 'grey',
-        width: "100%"
-    },
-    modalText:{
+    nameText: {
         color: 'black',
         textAlign: 'center',
         fontSize: '0.8rem',
         paddingBottom: '2.5%',
         paddingTop: '2.5%'
     },
+    modalViewStyle:{
+        padding: '0.25rem',
+        alignItems: 'center',
+        justifyContent: 'center',
+        marginLeft: '1rem',
+        marginRight: '1rem',
+        width: "50%",
+        backgroundColor: '$notificationGrey',
+        borderRadius: 15
+    },
+    modalButton:{
+        backgroundColor: 'grey',
+        width: "15%",
+        borderRadius: 15,
+        paddingBottom: 5
+    },
+    modalText:{
+        color: 'white',
+        textAlign: 'center',
+        fontSize: '0.8rem',
+        paddingBottom: '2.5%',
+        paddingTop: '2.5%'
+    },
     modalRecipientText:{
-        color: 'black',
+        color: 'white',
         textAlign: 'center',
         fontSize: '0.8rem',
         borderBottomWidth: 1,
-        borderColor: 'grey',
-
     },
     modalButtonText:{
-        color: 'blue',
+        color: 'white',
         textAlign: 'center',
         fontSize: '0.8rem',
         paddingTop: '0.5rem',
@@ -525,15 +551,17 @@ let styles = EStyleSheet.create({
         backgroundColor: 'white'
     },
     nameModalButton:{
-        backgroundColor: 'white',
-        borderTopWidth: 1,
-        borderColor: 'grey',
-        width: "100%",
-        bottom: 0
+        backgroundColor: 'grey',
+        width: "10%",
+        borderRadius: 10,
+        marginLeft: '45%',
+        color: 'white',
+        paddingBottom: 5
     },
     TextInput: {
         margin: '2rem',
-        borderBottomWidth: 1
+        borderBottomWidth: 1,
+        textAlign: 'center'
     },
     errorText:{
         textAlign: 'center',
