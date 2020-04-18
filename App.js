@@ -66,6 +66,11 @@ socket.on('air', (message)=>{
         stateContainer.setState({
             airMessage: 'Off Air'
         })
+    } else if (message.type === 'ready') {
+        stateContainer.setState({
+            airMessage: 'ready'
+        })
+        Vibration.vibrate(200);
     }
 })
 
@@ -390,7 +395,7 @@ export default class Main extends React.Component {
                     {this.state.selfViewSrc && <RTCView streamURL={this.state.selfViewSrc}style={styles.videoPlayerContainer}/>}
                 </View>
                 <View style={styles.buttonContainer}>
-                    <Text>{this.state.name}</Text>
+                    {/*<Text>{this.state.name}</Text>*/}
                     <TouchableOpacity onPress={this.onPressStart} style={styles.startButton}>
                         <Text style={styles.buttonText}>
                             {this.state.stopStartText}
@@ -400,6 +405,13 @@ export default class Main extends React.Component {
                         <TouchableOpacity style={styles.onAirButton}>
                             <Text style={styles.buttonText}>
                                 Live
+                            </Text>
+                        </TouchableOpacity>
+                    }
+                    { this.state.airMessage === 'ready' &&
+                        <TouchableOpacity style={styles.liveSoonButton}>
+                            <Text style={styles.liveSoonButtonText}>
+                                Live soon
                             </Text>
                         </TouchableOpacity>
                     }
@@ -481,6 +493,15 @@ let styles = EStyleSheet.create({
         marginBottom: 5,
         width: "90%",
     },
+    liveSoonButton: {
+        backgroundColor: 'green',
+        borderWidth: 2,
+        borderColor: 'black',
+        borderRadius: 5,
+        marginTop: 5,
+        marginBottom: 5,
+        width: "90%",
+    },
     responseButton: {
         backgroundColor: '#00838f',
         borderWidth: 2,
@@ -491,6 +512,12 @@ let styles = EStyleSheet.create({
         marginTop: "5%"
     },
     buttonText: {
+        color: 'white',
+        textAlign: 'center',
+        fontWeight: 'bold',
+        fontSize: '1rem'
+    },
+    liveSoonButtonText: {
         color: 'white',
         textAlign: 'center',
         fontWeight: 'bold',
