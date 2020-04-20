@@ -141,14 +141,15 @@ socket.on('mobile-connected', ()=>{
     })
 })
 
-function returnQuestion(questionText){
-    socket.emit('question-text', questionText);
+function statusUpdate(status) {
+    socket.emit('status', status);
 }
 
 function returnOption(option){
     option = " Option: " + option; 
     optionSelected = true;
     socket.emit('options-response', option);
+    statusUpdate('replied');
 };
 
 function takeOption(otherIDs, options, option){
@@ -323,7 +324,6 @@ export default class Main extends React.Component {
     }
 
     onPressOption(option){
-        returnQuestion(questionText);
         returnOption(option);
         takeOption(this.state.otherIDs, this.state.options, option);
         this.setState({
@@ -339,7 +339,7 @@ export default class Main extends React.Component {
             modalVisible: false,
             modalText: ''
         });
-        returnQuestion(this.state.modalText);
+        statusUpdate('read');
     }
 
 
